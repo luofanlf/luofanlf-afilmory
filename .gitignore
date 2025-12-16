@@ -12,7 +12,6 @@ thomas-x2d-xcd-25v-1.webp
 
 
 .env
-builder.config.ts
 
 apps/web/assets-git
 apps/web/src/data/photos-manifest.json
