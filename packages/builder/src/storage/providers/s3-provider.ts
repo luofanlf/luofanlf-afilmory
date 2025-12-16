@@ -309,7 +309,21 @@ export class S3StorageProvider implements StorageProvider {
     })
     const text = await response.text()
     if (!response.ok) {
-      throw new Error(`列出 S3 对象失败 (status ${response.status}): ${formatS3ErrorBody(text)}`)
+      const errorBody = formatS3ErrorBody(text)
+      let errorMessage = `列出 S3 对象失败 (status ${response.status}): ${errorBody}`
+
+      // 提供更详细的错误提示
+      if (response.status === 403 && errorBody.includes('SignatureDoesNotMatch')) {
+        errorMessage += `\n\n签名验证失败的可能原因：\n`
+        errorMessage += `1. 检查 S3_REGION 是否与 bucket 的实际 region 一致\n`
+        errorMessage += `2. 检查 S3_ACCESS_KEY_ID 和 S3_SECRET_ACCESS_KEY 是否正确\n`
+        errorMessage += `3. 如果设置了 S3_ENDPOINT，确保它与 S3_REGION 匹配\n`
+        errorMessage += `4. 当前配置：region=${this.config.region || '未设置'}, endpoint=${this.config.endpoint || '默认'}, bucket=${this.config.bucket || '未设置'}`
+      } else if (response.status === 301) {
+        errorMessage += `\n\n重定向错误：bucket 的 region 与配置的 region 不匹配。请检查 S3_REGION 配置。`
+      }
+
+      throw new Error(errorMessage)
     }
     const parsed = xmlParser.parse(text)
     const contents = parsed?.ListBucketResult?.Contents ?? []

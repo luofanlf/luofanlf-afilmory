@@ -190,7 +190,10 @@ class SigV4Signer {
     const headers = new Headers(init.headers ?? {})
     headers.delete('authorization')
 
-    headers.set('host', url.host)
+    // Host header should not include port for default HTTPS (443) or HTTP (80)
+    // url.hostname is the hostname without port, which is what AWS expects
+    const hostHeader = url.port && url.port !== '443' && url.port !== '80' ? url.host : url.hostname
+    headers.set('host', hostHeader)
 
     const body = init.body ?? null
     const payloadHash = await this.hashPayload(body)
