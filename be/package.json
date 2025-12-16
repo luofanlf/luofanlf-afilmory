@@ -3,7 +3,7 @@
   "type": "module",
   "version": "1.0.0",
   "private": true,
-  "author": "Innei",
+  "author": "luofanlf",
   "main": "index.js",
   "scripts": {
     "db:generate": "pnpm --filter core db:generate",

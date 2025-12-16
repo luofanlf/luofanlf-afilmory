@@ -4,7 +4,7 @@
   "version": "1.0.0",
   "packageManager": "pnpm@10.24.0",
   "description": "",
-  "author": "Innei",
+  "author": "luofanlf",
   "main": "index.js",
   "scripts": {
     "build": "sh scripts/build.sh",
