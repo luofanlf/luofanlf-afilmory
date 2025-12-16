@@ -3,7 +3,7 @@
   "type": "module",
   "version": "1.0.0",
   "packageManager": "pnpm@10.24.0",
-  "author": "Innei",
+  "author": "luofanlf",
   "main": "index.ts",
   "scripts": {
     "build": "vite build",

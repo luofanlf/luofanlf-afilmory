@@ -4,7 +4,7 @@
   "version": "0.2.0",
   "packageManager": "pnpm@10.24.0",
   "description": "",
-  "author": "Innei",
+  "author": "luofanlf",
   "license": "MIT",
   "exports": {
     ".": "./src/index.ts"
