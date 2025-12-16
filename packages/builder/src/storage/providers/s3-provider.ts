@@ -303,11 +303,71 @@ export class S3StorageProvider implements StorageProvider {
   }
 
   private async listObjects(prefix?: string): Promise<StorageObject[]> {
-    const response = await this.client.listObjects({
+    let response = await this.client.listObjects({
       prefix: prefix ?? this.config.prefix,
       maxKeys: this.config.maxFileLimit,
     })
     const text = await response.text()
+
+    // 处理 301 重定向：自动从 Location header 提取正确的 endpoint 和 region
+    if (response.status === 301) {
+      const location = response.headers.get('location')
+      if (location) {
+        try {
+          const redirectUrl = new URL(location)
+          const {hostname} = redirectUrl
+
+          // 从 hostname 提取 region，例如：bucket.s3.ap-southeast-1.amazonaws.com -> ap-southeast-1
+          const regionMatch = hostname.match(/\.s3[.-]([^.]+)\.amazonaws\.com/)
+          if (regionMatch && regionMatch[1]) {
+            const correctRegion = regionMatch[1]
+            const correctEndpoint = `https://s3.${correctRegion}.amazonaws.com`
+
+            logger.s3.warn(
+              `检测到 301 重定向，bucket 的实际 region 是 ${correctRegion}，当前配置的 region 是 ${this.config.region || '未设置'}`,
+            )
+            logger.s3.info(`自动更新配置：region=${correctRegion}, endpoint=${correctEndpoint}`)
+
+            // 更新配置
+            this.config.region = correctRegion
+            this.config.endpoint = correctEndpoint
+
+            // 重新创建 client
+            this.client = new S3ProviderClient(this.config)
+
+            // 重试请求
+            response = await this.client.listObjects({
+              prefix: prefix ?? this.config.prefix,
+              maxKeys: this.config.maxFileLimit,
+            })
+            const retryText = await response.text()
+            if (!response.ok) {
+              const errorBody = formatS3ErrorBody(retryText)
+              throw new Error(`重试后仍然失败 (status ${response.status}): ${errorBody}`)
+            }
+            // 重试成功，继续处理响应
+            const parsed = xmlParser.parse(retryText)
+            const contents = parsed?.ListBucketResult?.Contents ?? []
+            const items = Array.isArray(contents) ? contents : contents ? [contents] : []
+
+            return items
+              .map((item) => {
+                const key = item?.Key ?? ''
+                return {
+                  key,
+                  size: item?.Size !== undefined ? Number(item.Size) : undefined,
+                  lastModified: item?.LastModified ? new Date(item.LastModified) : undefined,
+                  etag: sanitizeS3Etag(typeof item?.ETag === 'string' ? item.ETag : undefined),
+                } satisfies StorageObject
+              })
+              .filter((item) => Boolean(item.key))
+          }
+        } catch {
+          // 如果无法解析 Location header，继续使用原来的错误处理
+        }
+      }
+    }
+
     if (!response.ok) {
       const errorBody = formatS3ErrorBody(text)
       let errorMessage = `列出 S3 对象失败 (status ${response.status}): ${errorBody}`
@@ -320,7 +380,9 @@ export class S3StorageProvider implements StorageProvider {
         errorMessage += `3. 如果设置了 S3_ENDPOINT，确保它与 S3_REGION 匹配\n`
         errorMessage += `4. 当前配置：region=${this.config.region || '未设置'}, endpoint=${this.config.endpoint || '默认'}, bucket=${this.config.bucket || '未设置'}`
       } else if (response.status === 301) {
-        errorMessage += `\n\n重定向错误：bucket 的 region 与配置的 region 不匹配。请检查 S3_REGION 配置。`
+        errorMessage += `\n\n重定向错误：bucket 的 region 与配置的 region 不匹配。`
+        errorMessage += `\n当前配置：region=${this.config.region || '未设置'}, endpoint=${this.config.endpoint || '默认'}`
+        errorMessage += `\n建议：检查 bucket 的实际 region，并更新 S3_REGION 环境变量。`
       }
 
       throw new Error(errorMessage)
