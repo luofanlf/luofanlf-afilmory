@@ -19,7 +19,7 @@ export function createS3Client(config: S3CompatibleConfig): SimpleS3Client {
   }
 
   const { accessKeyId, secretAccessKey, endpoint, bucket } = config
-  const region = config.region ?? 'us-east-1'
+  const region = (config.region ?? 'us-east-1').trim()
 
   if (!bucket || bucket.trim().length === 0) {
     throw new Error('S3 bucket is required')

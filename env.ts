@@ -5,7 +5,10 @@ import { z } from 'zod'
 
 export const env = createEnv({
   server: {
-    S3_REGION: z.string().default('us-east-1'),
+    S3_REGION: z
+      .string()
+      .default('us-east-1')
+      .transform((val) => val.trim()),
     S3_ACCESS_KEY_ID: z.string().min(1).optional(),
     S3_SECRET_ACCESS_KEY: z.string().min(1).optional(),
     S3_ENDPOINT: z.string().optional(),
